@@ -717,7 +717,7 @@
       container.style.opacity = '0';
     }
     const chargeInput = document.getElementById('returnDeliveryCharge');
-    if (chargeInput) chargeInput.value = '500';
+    if (chargeInput) chargeInput.value = '600';
 
     document.getElementById('depositModal').classList.add('open');
   }
@@ -764,7 +764,7 @@
       container.style.opacity = '0';
     }
     const chargeInput = document.getElementById('returnDeliveryCharge');
-    if (chargeInput) chargeInput.value = '500';
+    if (chargeInput) chargeInput.value = '600';
   }
 
   function submitDepositChoice(donate) {
@@ -776,10 +776,10 @@
     }
     
     // Validate return delivery charge if requested
-    let chargeVal = '500';
+    let chargeVal = '600';
     if (returnDeliveryRequested) {
       const chargeInput = document.getElementById('returnDeliveryCharge');
-      chargeVal = chargeInput ? chargeInput.value.trim() : '500';
+      chargeVal = chargeInput ? chargeInput.value.trim() : '600';
       if (chargeVal === '' || parseFloat(chargeVal) < 0 || isNaN(parseFloat(chargeVal))) {
         const errorDiv = document.getElementById('donationError');
         if (errorDiv) {

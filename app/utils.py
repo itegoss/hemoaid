@@ -151,6 +151,8 @@ def build_booking_receipt_breakdown(rental, related_rentals):
 
     extension_history = [grouped_extensions[key] for key in sorted(grouped_extensions)]
     extension_total = sum((ext["extension_total"] for ext in extension_history), Decimal("0"))
+    if getattr(rental, 'extension_rent', None) and rental.extension_rent > 0 and (extension_total == Decimal("0") or getattr(rental, '_extension_rent_manually_set', False)):
+        extension_total = rental.extension_rent
     original_total_amount = original_total_rent + original_total_deposit + delivery_charge
     final_total_amount = original_total_amount + extension_total
     amount_paid = sum((rr.amount_paid for rr in rental_rows), Decimal("0"))
@@ -403,9 +405,13 @@ def generate_receipt(order, receipt_type="booking"):
     summary_rows = [
         [Paragraph("<b>Rent Amount:</b>", normal_style), Paragraph(f"Rs. {breakdown['original_total_rent']:.2f}", right_normal_style)],
     ]
-    if breakdown['extension_history']:
+    ext_tot = breakdown["extension_total"]
+    if getattr(order, 'extension_rent', None) and order.extension_rent > 0 and (ext_tot == Decimal("0") or getattr(order, '_extension_rent_manually_set', False)):
+        ext_tot = order.extension_rent
+
+    if breakdown['extension_history'] or ext_tot > 0:
         summary_rows.append(
-            [Paragraph("<b>Extension Rent:</b>", normal_style), Paragraph(f"Rs. {breakdown['extension_total']:.2f}", right_normal_style)]
+            [Paragraph("<b>Extension Rent:</b>", normal_style), Paragraph(f"Rs. {ext_tot:.2f}", right_normal_style)]
         )
     summary_rows.append(
         [Paragraph("<b>Delivery Charges:</b>", normal_style), Paragraph(del_charge_text, right_normal_style)]
@@ -414,32 +420,40 @@ def generate_receipt(order, receipt_type="booking"):
         summary_rows.append(
             [Paragraph("<b>Return Delivery Charges:</b>", normal_style), Paragraph(f"Rs. {return_pickup_charge:.2f}", right_normal_style)]
         )
-    summary_rows.append(
-        [Paragraph("<b>Deposit Total:</b>", normal_style), Paragraph(f"Rs. {breakdown['original_total_deposit']:.2f}", right_normal_style)]
-    )
-    if getattr(order, 'deposit_donated', False) or getattr(order, 'donation_amount', 0):
-        don_amt = getattr(order, 'donation_amount', 0) or breakdown['original_total_deposit']
-        summary_rows.append(
-            [Paragraph("<b>Donation Amount:</b>", normal_style), Paragraph(f"Rs. {don_amt:.2f}", ParagraphStyle('RightGreen', parent=bold_style, textColor=HexColor('#1b8a4b'), alignment=2))]
-        )
-    
     if receipt_type == "return":
         donation_amount = sum((rr.donation_amount for rr in related_rentals), Decimal("0"))
+        if getattr(order, 'deposit_donated', False):
+            donation_amount = breakdown["original_total_deposit"]
+            
         total_deposit = breakdown["original_total_deposit"]
         additional_deposit = sum((ext["additional_deposit"] for ext in breakdown["extension_history"]), Decimal("0"))
         final_deposit = total_deposit + additional_deposit
-        total_rent_with_extensions = breakdown["original_total_rent"] + breakdown["extension_total"]
+            
+        total_rent_with_extensions = breakdown["original_total_rent"] + ext_tot
         total_amount = total_rent_with_extensions + delivery_charge + return_pickup_charge + final_deposit
         amount_paid = breakdown["amount_paid"]
 
-        if amount_paid < total_amount:
-            amount_remaining = total_amount - amount_paid
-            refund_amount = Decimal("0")
-        elif amount_paid > total_amount:
-            amount_remaining = Decimal("0")
-            refund_amount = Decimal("0") if order.deposit_donated else (amount_paid - total_amount)
+        summary_rows.append(
+            [Paragraph("<b>Deposit Total:</b>", normal_style), Paragraph(f"Rs. {final_deposit:.2f}", right_normal_style)]
+        )
+        if donation_amount > 0:
+            summary_rows.append(
+                [Paragraph("<b>Donation Amount:</b>", normal_style), Paragraph(f"Rs. {donation_amount:.2f}", ParagraphStyle('RightGreen', parent=bold_style, textColor=HexColor('#1b8a4b'), alignment=2))]
+            )
+
+        if getattr(order, 'deposit_donated', False):
+            refundable_deposit = Decimal("0")
         else:
+            refundable_deposit = max(Decimal("0"), final_deposit - donation_amount)
+
+        initial_balance_due = max(Decimal("0"), total_amount - amount_paid)
+        overpaid = max(Decimal("0"), amount_paid - total_amount)
+
+        if refundable_deposit >= initial_balance_due:
+            refund_amount = (refundable_deposit - initial_balance_due) + overpaid
             amount_remaining = Decimal("0")
+        else:
+            amount_remaining = initial_balance_due - refundable_deposit
             refund_amount = Decimal("0")
 
         summary_rows.append(
@@ -455,13 +469,21 @@ def generate_receipt(order, receipt_type="booking"):
             )
         elif amount_remaining > 0:
             summary_rows.append(
-                [Paragraph("<b>Balanced Amount:</b>", normal_style), Paragraph(f"Rs. {amount_remaining:.2f}", ParagraphStyle('RemainAmtRight', parent=bold_style, textColor=HexColor('#ec2427'), alignment=2))]
+                [Paragraph("<b>Balance Amount (Due):</b>", normal_style), Paragraph(f"Rs. {amount_remaining:.2f}", ParagraphStyle('RemainAmtRight', parent=bold_style, textColor=HexColor('#ec2427'), alignment=2))]
             )
         else:
             summary_rows.append(
-                [Paragraph("<b>Status:</b>", normal_style), Paragraph("Settled (Rs. 0.00)", ParagraphStyle('SettledRight', parent=bold_style, textColor=HexColor('#1b8a4b'), alignment=2))]
+                [Paragraph("<b>Balance Amount:</b>", normal_style), Paragraph("Rs. 0.00", ParagraphStyle('SettledRight', parent=bold_style, textColor=HexColor('#1b8a4b'), alignment=2))]
             )
     else:
+        summary_rows.append(
+            [Paragraph("<b>Deposit Total:</b>", normal_style), Paragraph(f"Rs. {breakdown['original_total_deposit']:.2f}", right_normal_style)]
+        )
+        if getattr(order, 'deposit_donated', False) or getattr(order, 'donation_amount', 0):
+            don_amt = getattr(order, 'donation_amount', 0) or breakdown['original_total_deposit']
+            summary_rows.append(
+                [Paragraph("<b>Donation Amount:</b>", normal_style), Paragraph(f"Rs. {don_amt:.2f}", ParagraphStyle('RightGreen', parent=bold_style, textColor=HexColor('#1b8a4b'), alignment=2))]
+            )
         summary_rows.append(
             [Paragraph("<b>Total Amount:</b>", ParagraphStyle('LargeBold', parent=bold_style, fontSize=10, textColor=HexColor('#1b8a4b'))), 
              Paragraph(f"Rs. {breakdown['final_total_amount']:.2f}", ParagraphStyle('LargeBoldRight', parent=bold_style, fontSize=10, textColor=HexColor('#1b8a4b'), alignment=2))]

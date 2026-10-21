@@ -538,7 +538,7 @@
               <td><strong>Rent Amount:</strong></td>
               <td class="text-right">₹{{ total_rent }}</td>
             </tr>
-            {% if extension_history %}
+            {% if extension_history or extension_total > 0 %}
             <tr>
               <td><strong>Extension Rent:</strong></td>
               <td class="text-right">₹{{ extension_total }}</td>
@@ -588,15 +588,15 @@
               <td><strong>Paid Amount:</strong></td>
               <td class="text-right" style="color:green;font-weight:bold;">₹{{ amount_paid }}</td>
             </tr>
-            {% if amount_remaining > 0 %}
-            <tr class="balance-row">
-              <td><strong>Balance Amount (Due):</strong></td>
-              <td class="text-right" style="color:#dc2626;font-weight:bold;">₹{{ amount_remaining }}</td>
-            </tr>
-            {% elif refund_amount > 0 %}
+            {% if refund_amount > 0 %}
             <tr class="balance-row">
               <td><strong>Refund Amount:</strong></td>
               <td class="text-right" style="color:green;font-weight:bold;">₹{{ refund_amount }}</td>
+            </tr>
+            {% elif amount_remaining > 0 %}
+            <tr class="balance-row">
+              <td><strong>Balance Amount (Due):</strong></td>
+              <td class="text-right" style="color:#dc2626;font-weight:bold;">₹{{ amount_remaining }}</td>
             </tr>
             {% else %}
             <tr class="balance-row">

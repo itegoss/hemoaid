@@ -15,8 +15,10 @@ from app.whatsapp_service import (
     send_whatsapp_template,
 )
 from app.views import approve_order, deliver_order, approve_return_order, return_order
+from django.urls import reverse
 from django.core.cache import cache
 import os
+import datetime
 
 
 class WhatsAppReceiptNotificationTests(TestCase):
@@ -422,4 +424,62 @@ class WhatsAppReceiptNotificationTests(TestCase):
         send_booking_whatsapp(self.rental, force=True)
         self.assertEqual(mock_send_template.call_args.kwargs["template_name"], "return_approved")
         self.assertEqual(mock_send_template.call_args.kwargs["variables"][3], "returned")
+
+    def test_return_receipt_deposit_deduction_and_refund(self):
+        """
+        Verify return receipt calculation matches user requirement:
+        Rent: Rs. 140
+        Extension Rent: Rs. 200
+        Deposit: Rs. 3000
+        Total Amount: Rs. 3340
+        Paid Amount: Rs. 3140
+        At return receipt time, deposit is deducted so Refund Amount = Rs. 2800, Balance = Rs. 0
+        """
+        from app.models import BookingExtension
+        self.client.force_login(self.customer)
+        self.item.price_per_day = Decimal("20.00")
+        self.item.deposit = Decimal("3000.00")
+        self.item.save()
+
+        self.rental.status = "returned"
+        self.rental.is_returned = True
+        self.rental.actual_return_date = self.rental.start_date + timezone.timedelta(days=16)
+        self.rental.end_date = self.rental.start_date + timezone.timedelta(days=6) # 7 days inclusive
+        self.rental.delivery_charge = Decimal("0")
+        self.rental.deposit = Decimal("3000.00")
+        self.rental.rent = Decimal("20.00")
+        self.rental.price = Decimal("140.00")
+        self.rental.total_amount = Decimal("3140.00")
+        self.rental.amount_paid = Decimal("3140.00")
+        self.rental.save()
+
+        # Add extension of Rs. 200
+        BookingExtension.objects.create(
+            rental_request=self.rental,
+            extension_no=1,
+            previous_return_date=self.rental.end_date,
+            new_return_date=self.rental.start_date + timezone.timedelta(days=16),
+            extra_days=10,
+            rent_per_day=Decimal("20.00"),
+            additional_rent=Decimal("200.00"),
+            additional_deposit=Decimal("0.00"),
+            extension_total=Decimal("200.00")
+        )
+
+        response = self.client.get(reverse("return_receipt", args=[self.rental.order_id]))
+        self.assertEqual(response.status_code, 200)
+        ctx = response.context
+        self.assertEqual(ctx["total_rent"], Decimal("140.00"))
+        self.assertEqual(ctx["extension_total"], Decimal("200.00"))
+        self.assertEqual(ctx["total_deposit"], Decimal("3000.00"))
+        self.assertEqual(ctx["total_amount"], Decimal("3340.00"))
+        self.assertEqual(ctx["amount_paid"], Decimal("3140.00"))
+        self.assertEqual(ctx["refund_amount"], Decimal("2800.00"))
+        self.assertEqual(ctx["amount_remaining"], Decimal("0.00"))
+
+        # Verify PDF generation also works cleanly with this setup
+        pdf_file = generate_receipt(self.rental, receipt_type="return")
+        self.assertIsNotNone(pdf_file)
+        self.assertTrue(pdf_file.read().startswith(b"%PDF"))
+
 

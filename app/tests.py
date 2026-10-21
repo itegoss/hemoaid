@@ -531,12 +531,13 @@ class ReturnReceiptCalculationTests(TestCase):
         
         # User scenario:
         # Rent Amount = 120 (6 days @ 20/day)
-        # Extension Rent = 0
+        # Extension Rent = 1500
         # Delivery Charges = 500
         # Return Delivery Charges = 500
-        # Deposit Total = 1500
-        # Total Amount = 120 + 0 + 500 + 500 + 1500 = 2620
-        # Paid Amount = 2000 -> Balance Due = 620, Refund = 0
+        # Total Charges = 120 + 1500 + 500 + 500 = 2620
+        # Deposit Total = 1500 (Deducted / Minus)
+        # Total Amount = 2620 - 1500 = 1120
+        # Paid Amount = 500 -> Balance Due = 620, Refund = 0
         start = timezone.now().date()
         end = start + datetime.timedelta(days=5) # 6 days
         rental = History.objects.create(
@@ -546,7 +547,8 @@ class ReturnReceiptCalculationTests(TestCase):
             end_date=end,
             quantity=1,
             deposit=Decimal("1500.00"),
-            amount_paid=Decimal("2000.00"),
+            extension_rent=Decimal("1500.00"),
+            amount_paid=Decimal("500.00"),
             delivery_option='delivery',
             delivery_charge=Decimal("500.00"),
             return_pickup_charge=Decimal("500.00"),
@@ -564,8 +566,8 @@ class ReturnReceiptCalculationTests(TestCase):
         self.assertEqual(response.context['total_deposit'], Decimal("1500.00"))
         self.assertEqual(response.context['delivery_charge'], Decimal("500.00"))
         self.assertEqual(response.context['return_pickup_charge'], Decimal("500.00"))
-        self.assertEqual(response.context['total_amount'], Decimal("2620.00"))
-        self.assertEqual(response.context['amount_paid'], Decimal("2000.00"))
+        self.assertEqual(response.context['total_amount'], Decimal("1120.00"))
+        self.assertEqual(response.context['amount_paid'], Decimal("500.00"))
         self.assertEqual(response.context['amount_remaining'], Decimal("620.00"))
         self.assertEqual(response.context['refund_amount'], Decimal("0.00"))
         self.assertContains(response, "Balance Amount (Due):")
@@ -577,7 +579,7 @@ class ReturnReceiptCalculationTests(TestCase):
         from django.utils import timezone
         from app.models import History
         
-        # Scenario: Total = 2620, Paid Amount = 3000 -> Refund = 380, Balance = 0
+        # Scenario: Total Charges = 2620, Deposit = 1500 -> Total Amount = 1120. Paid Amount = 1500 -> Refund = 380, Balance = 0
         start = timezone.now().date()
         end = start + datetime.timedelta(days=5)
         rental = History.objects.create(
@@ -587,6 +589,7 @@ class ReturnReceiptCalculationTests(TestCase):
             end_date=end,
             quantity=1,
             deposit=Decimal("1500.00"),
+            extension_rent=Decimal("1500.00"),
             amount_paid=Decimal("3000.00"),
             delivery_option='delivery',
             delivery_charge=Decimal("500.00"),
@@ -601,7 +604,7 @@ class ReturnReceiptCalculationTests(TestCase):
         response = self.client.get(reverse('return_receipt', args=['ORD202607998']))
         self.assertEqual(response.status_code, 200)
         
-        self.assertEqual(response.context['total_amount'], Decimal("2620.00"))
+        self.assertEqual(response.context['total_amount'], Decimal("1120.00"))
         self.assertEqual(response.context['amount_paid'], Decimal("3000.00"))
         self.assertEqual(response.context['amount_remaining'], Decimal("0.00"))
         self.assertEqual(response.context['refund_amount'], Decimal("380.00"))
@@ -614,7 +617,7 @@ class ReturnReceiptCalculationTests(TestCase):
         from django.utils import timezone
         from app.models import History
         
-        # Scenario: Total = 2620, Paid Amount = 2620 -> Balance = 0, Refund = 0
+        # Scenario: Total Charges = 2620, Deposit = 1500 -> Total Amount = 1120. Paid Amount = 1120 -> Balance = 0, Refund = 0
         start = timezone.now().date()
         end = start + datetime.timedelta(days=5)
         rental = History.objects.create(
@@ -624,6 +627,7 @@ class ReturnReceiptCalculationTests(TestCase):
             end_date=end,
             quantity=1,
             deposit=Decimal("1500.00"),
+            extension_rent=Decimal("1500.00"),
             amount_paid=Decimal("2620.00"),
             delivery_option='delivery',
             delivery_charge=Decimal("500.00"),
@@ -638,7 +642,7 @@ class ReturnReceiptCalculationTests(TestCase):
         response = self.client.get(reverse('return_receipt', args=['ORD202607997']))
         self.assertEqual(response.status_code, 200)
         
-        self.assertEqual(response.context['total_amount'], Decimal("2620.00"))
+        self.assertEqual(response.context['total_amount'], Decimal("1120.00"))
         self.assertEqual(response.context['amount_paid'], Decimal("2620.00"))
         self.assertEqual(response.context['amount_remaining'], Decimal("0.00"))
         self.assertEqual(response.context['refund_amount'], Decimal("0.00"))
@@ -708,14 +712,13 @@ class DynamicReturnDeliveryChargeTests(TestCase):
         self.assertEqual(response_receipt.status_code, 200)
         self.assertEqual(response_receipt.context['return_pickup_charge'], Decimal("350.00"))
         
-        # total_amount: 200 rent + 500 delivery + 350 return delivery + 1500 deposit = 2550
+        # total_amount: 200 rent + 500 delivery + 350 return delivery - 1500 deposit = -450
         # final_deposit: 1500
-        # amount_paid: 2200
-        # Paid Amount < Total Amount:
-        # Balance = Total Amount - Paid Amount = 2550 - 2200 = 350
-        self.assertEqual(response_receipt.context['total_amount'], Decimal("2550.00"))
-        self.assertEqual(response_receipt.context['refund_amount'], Decimal("0.00"))
-        self.assertEqual(response_receipt.context['amount_remaining'], Decimal("350.00"))
+        # amount_paid: 2200 (Paid >= Deposit)
+        # Refund = 2200 - (200 + 500 + 350) = 1150
+        self.assertEqual(response_receipt.context['total_amount'], Decimal("-450.00"))
+        self.assertEqual(response_receipt.context['refund_amount'], Decimal("1150.00"))
+        self.assertEqual(response_receipt.context['amount_remaining'], Decimal("0.00"))
 
     def test_return_request_status_and_whatsapp_notification(self):
         from unittest.mock import patch
