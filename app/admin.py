@@ -29,6 +29,7 @@ from .models import (
     Role,
     UserRole,
     BloodBank,
+    BookingExtension,
 )
 
 from .utils import generate_receipt, receipt_filename, send_notification, send_whatsapp_message, generate_rental_report_pdf
@@ -187,15 +188,48 @@ from django.contrib.admin.views.main import ChangeList
 class HistoryChangeList(ChangeList):
     pass
 
+class BookingExtensionInline(admin.TabularInline):
+    model = BookingExtension
+    extra = 0
+    fields = (
+        'extension_no',
+        'previous_return_date',
+        'new_return_date',
+        'extra_days',
+        'rent_per_day',
+        'additional_rent',
+        'additional_deposit',
+        'extension_total',
+    )
+
+
+@admin.register(BookingExtension)
+class BookingExtensionAdmin(admin.ModelAdmin):
+    list_display = (
+        'rental_request',
+        'extension_no',
+        'previous_return_date',
+        'new_return_date',
+        'extra_days',
+        'rent_per_day',
+        'additional_rent',
+        'additional_deposit',
+        'extension_total',
+        'extended_on',
+    )
+    list_filter = ('extended_on', 'previous_return_date', 'new_return_date')
+    search_fields = ('rental_request__order_id', 'rental_request__renter_name')
+
+
 @admin.register(History)
 class HistoryAdmin(admin.ModelAdmin):
 
     list_display = (
         'serial_number','user','rental_item','renter_name', 'email', 'phone','address', 'patient_name','start_date','end_date',
         'extended_end_date','actual_return_date','get_rental_days',
-        'get_per_day_rent','status','total_amount','amount_paid','amount_remaining','is_delivery_paid','is_reminder_sent',
+        'get_per_day_rent','extension_rent','status','total_amount','amount_paid','amount_remaining','is_delivery_paid','is_reminder_sent',
         'is_overdue_email_sent','order_id','deposit','download_receipt',
-        'send_whatsapp','patient_name','delivery_option','delivery_charge',
+        'send_whatsapp','patient_name','delivery_option','delivery_charge','return_pickup_charge',
         'is_return_requested','is_returned','send_reminder_whatsapp',
     )
     list_display_links = ('serial_number',)
@@ -206,12 +240,13 @@ class HistoryAdmin(admin.ModelAdmin):
     search_fields = ('user__username','rental_item__title','patient_name','order_id','email')
 
     actions = [approve_return]
+    inlines = [BookingExtensionInline]
 
     fields = (
         'id','user','rental_item','renter_name','email','phone','address', 'patient_name','start_date','end_date',
         'extended_end_date','actual_return_date','quantity','rent','payment_method',
-        'deposit','delivery_option','delivery_charge','is_delivery_paid','status',
-        'total_amount','amount_paid','amount_remaining','id_proof_type','id_proof_number',
+        'deposit','delivery_option','delivery_charge','return_pickup_charge','is_delivery_paid','status',
+        'extension_rent','total_amount','amount_paid','amount_remaining','id_proof_type','id_proof_number',
         'is_return_requested','is_returned','deposit_donated',
         'donation_amount','donation_comment','order_id',
     )
@@ -220,6 +255,8 @@ class HistoryAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         obj._from_admin = True
+        if 'extension_rent' in form.changed_data:
+            obj._extension_rent_manually_set = True
         if 'amount_remaining' in form.changed_data:
             obj._amount_remaining_manually_changed = True
         if 'total_amount' in form.changed_data:
@@ -242,11 +279,17 @@ class HistoryAdmin(admin.ModelAdmin):
             from django.core.files.base import ContentFile
             from .utils import receipt_filename
             
-            # Find the existing booking receipt
+            # Find and regenerate booking receipt
             existing = obj.receipts.filter(receipt_type="booking").order_by('-created_at').first()
             if existing:
-                content_file = generate_receipt(obj)
-                existing.file.save(receipt_filename(obj), content_file, save=True)
+                content_file = generate_receipt(obj, receipt_type="booking")
+                existing.file.save(receipt_filename(obj, receipt_type="booking"), content_file, save=True)
+
+            # Find and regenerate return receipt if exists
+            existing_return = obj.receipts.filter(receipt_type="return").order_by('-created_at').first()
+            if existing_return:
+                content_file = generate_receipt(obj, receipt_type="return")
+                existing_return.file.save(receipt_filename(obj, receipt_type="return"), content_file, save=True)
         except Exception as e:
             print(f"[admin save_model receipt regen error] {e}")
 

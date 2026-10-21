@@ -16,7 +16,7 @@ from django.db import transaction
 from django.core.paginator import Paginator
 from django.db import ProgrammingError
 from django.db.models import Q
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout as auth_logout
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -234,6 +234,7 @@ def signup(request):
 
     return render(request, 'signup.html')
 
+@ensure_csrf_cookie
 def signin(request):
     if request.user.is_authenticated:
         next_url = request.GET.get('next') or request.POST.get('next')
@@ -1108,9 +1109,9 @@ def select_delivery(request, pk):
                     try:
                         rental.delivery_charge = Decimal(re.sub(r"[^0-9.]", "", delivery_charge_str))
                     except Exception:
-                        rental.delivery_charge = Decimal('500')
+                        rental.delivery_charge = Decimal('600')
                 else:
-                    rental.delivery_charge = Decimal('500')
+                    rental.delivery_charge = Decimal('600')
             else:
                 rental.delivery_charge = Decimal('0')
 
@@ -1126,9 +1127,9 @@ def select_delivery(request, pk):
                     try:
                         delivery_charge_val = Decimal(re.sub(r"[^0-9.]", "", delivery_charge_str))
                     except Exception:
-                        delivery_charge_val = Decimal('500')
+                        delivery_charge_val = Decimal('600')
                 else:
-                    delivery_charge_val = Decimal('500')
+                    delivery_charge_val = Decimal('600')
             else:
                 delivery_charge_val = Decimal('0')
 
@@ -1410,7 +1411,7 @@ def success(request, rental_id):
     total_deposit = sum(item["deposit"] * item["quantity"] for item in item_totals)
 
     delivery_option = rental.delivery_option
-    delivery_charge = 500 if delivery_option == "delivery" else 0
+    delivery_charge = 600 if delivery_option == "delivery" else 0
 
     if donate_deposit:
         total_amount = total_rent + delivery_charge
@@ -2360,6 +2361,7 @@ def extend_return_date(request, order_id):
                 extension_total=additional_rent + additional_deposit,
             )
             rr.extended_end_date = new_date
+            rr.extension_rent = (rr.extension_rent or Decimal("0")) + additional_rent
             rr.save()
 
         # Regenerate receipt PDF for the rental request
@@ -2425,9 +2427,9 @@ def return_order(request, order_id):
     return_delivery_charge = Decimal("0")
     if return_delivery:
         try:
-            return_delivery_charge = Decimal(request.GET.get("return_delivery_charge", "500"))
+            return_delivery_charge = Decimal(request.GET.get("return_delivery_charge", "600"))
         except Exception:
-            return_delivery_charge = Decimal("500")
+            return_delivery_charge = Decimal("600")
     donation_amount = Decimal("0")
     donation_comment = request.GET.get("donation_comment", "").strip()
 
@@ -3089,18 +3091,28 @@ def return_receipt(request, order_id):
     all_order_rentals = History.objects.filter(order_id=order_id)
     return_pickup_charge = max((rr.return_pickup_charge for rr in all_order_rentals), default=Decimal("0"))
     
-    total_rent_with_extensions = breakdown["original_total_rent"] + breakdown["extension_total"]
+    extension_total = breakdown["extension_total"]
+    if getattr(rental, 'extension_rent', None) and rental.extension_rent > 0 and (extension_total == Decimal("0") or getattr(rental, '_extension_rent_manually_set', False)):
+        extension_total = rental.extension_rent
+
+    total_rent_with_extensions = breakdown["original_total_rent"] + extension_total
     total_amount = total_rent_with_extensions + delivery_charge + return_pickup_charge + final_deposit
     amount_paid = breakdown["amount_paid"]
 
-    if amount_paid < total_amount:
-        amount_remaining = total_amount - amount_paid
-        refund_amount = Decimal("0")
-    elif amount_paid > total_amount:
-        amount_remaining = Decimal("0")
-        refund_amount = Decimal("0") if rental.deposit_donated else (amount_paid - total_amount)
+    # At the time of return receipt, deposit is minus / refunded:
+    if rental.deposit_donated:
+        refundable_deposit = Decimal("0")
     else:
+        refundable_deposit = max(Decimal("0"), final_deposit - donation_amount)
+
+    initial_balance_due = max(Decimal("0"), total_amount - amount_paid)
+    overpaid = max(Decimal("0"), amount_paid - total_amount)
+
+    if refundable_deposit >= initial_balance_due:
+        refund_amount = (refundable_deposit - initial_balance_due) + overpaid
         amount_remaining = Decimal("0")
+    else:
+        amount_remaining = initial_balance_due - refundable_deposit
         refund_amount = Decimal("0")
 
     context = {

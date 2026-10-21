@@ -150,6 +150,7 @@ class History(models.Model):
     deposit_donated = models.BooleanField(default=False)
     donation_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     donation_comment = models.TextField(blank=True, null=True)
+    extension_rent = models.DecimalField(max_digits=10, decimal_places=2, default=0, null=True, blank=True, verbose_name="Extension Rent")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2,blank=True,null=True)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     amount_remaining = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -219,12 +220,13 @@ class History(models.Model):
             except Exception:
                 pass
         rent_dec = Decimal(str(self.total_rent or '0'))
+        ext_dec = Decimal(str(self.extension_rent or '0'))
         deposit_dec = Decimal(str(self.deposit or '0'))
         delivery_dec = Decimal(str(self.delivery_charge or '0'))
         pickup_dec = Decimal(str(self.return_pickup_charge or '0'))
         
         if not getattr(self, '_total_amount_manually_changed', False) or self.total_amount is None:
-            self.total_amount = rent_dec + (deposit_dec * self.quantity) + delivery_dec + pickup_dec
+            self.total_amount = rent_dec + ext_dec + (deposit_dec * self.quantity) + delivery_dec + pickup_dec
         
         # Auto-update is_delivery_paid based on whether amount_paid covers rent and deposit + delivery charge (on creation only)
         if self.pk is None:
