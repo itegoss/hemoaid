@@ -2123,7 +2123,91 @@
     }
   </script>
 
-  <script src="{% static 'js/form_validation.js' %}"></script>
+  <!-- GLOBAL CSRF AUTO-SYNC & PROTECTION -->
+  <script>
+    (function () {
+      function getCsrfCookie() {
+        var name = 'csrftoken=';
+        var decodedCookie = document.cookie ? document.cookie.split(';') : [];
+        for (var i = 0; i < decodedCookie.length; i++) {
+          var c = decodedCookie[i].trim();
+          if (c.indexOf(name) === 0) {
+            return decodeURIComponent(c.substring(name.length));
+          }
+        }
+        return null;
+      }
+
+      function syncCsrfTokens() {
+        var token = getCsrfCookie();
+        if (!token) return;
+        var inputs = document.querySelectorAll('input[name="csrfmiddlewaretoken"]');
+        for (var i = 0; i < inputs.length; i++) {
+          inputs[i].value = token;
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', syncCsrfTokens);
+      } else {
+        syncCsrfTokens();
+      }
+
+      window.addEventListener('pageshow', function () {
+        syncCsrfTokens();
+      });
+
+      window.addEventListener('focus', syncCsrfTokens);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) syncCsrfTokens();
+      });
+
+      document.addEventListener('submit', function (e) {
+        var token = getCsrfCookie();
+        if (!token) return;
+        var form = e.target;
+        if (form && form.tagName === 'FORM') {
+          var method = (form.method || 'GET').toUpperCase();
+          if (method === 'POST') {
+            var csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+            if (csrfInput) {
+              csrfInput.value = token;
+            } else {
+              csrfInput = document.createElement('input');
+              csrfInput.type = 'hidden';
+              csrfInput.name = 'csrfmiddlewaretoken';
+              csrfInput.value = token;
+              form.appendChild(csrfInput);
+            }
+          }
+        }
+      }, true);
+
+      var originalFetch = window.fetch;
+      if (originalFetch) {
+        window.fetch = function (url, options) {
+          options = options || {};
+          var method = (options.method || 'GET').toUpperCase();
+          if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+            var token = getCsrfCookie();
+            if (token) {
+              options.headers = options.headers || {};
+              if (options.headers instanceof Headers) {
+                if (!options.headers.has('X-CSRFToken')) {
+                  options.headers.set('X-CSRFToken', token);
+                }
+              } else if (typeof options.headers === 'object') {
+                if (!options.headers['X-CSRFToken']) {
+                  options.headers['X-CSRFToken'] = token;
+                }
+              }
+            }
+          }
+          return originalFetch.apply(this, arguments);
+        };
+      }
+    })();
+  </script>
 </body>
 
 </html>

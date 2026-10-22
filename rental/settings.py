@@ -17,10 +17,13 @@ CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 
 ALLOWED_HOSTS = [
-    "https://rental-testing-319338334172.us-central1.run.app",
+    "rental-testing-319338334172.us-central1.run.app",
     "rental-856395380155.us-central1.run.app",
-    "sickbed.itegoss.in","*"
-   
+    "sickbed.itegoss.in",
+    "www.sickbed.itegoss.in",
+    "localhost",
+    "127.0.0.1",
+    "*",
 ]
 
 
@@ -49,6 +52,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "app.middleware.EnsureCsrfCookieMiddleware",
     "app.middleware.CustomSocialAuthExceptionMiddleware",
 ]
 
@@ -158,13 +162,29 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost",
     "http://localhost:8000",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://localhost:8080",
+    "http://127.0.0.1",
     "http://127.0.0.1:8000",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:8080",
     "https://sickbed.itegoss.in",
     "http://sickbed.itegoss.in",
+    "https://www.sickbed.itegoss.in",
+    "http://www.sickbed.itegoss.in",
+    "https://*.itegoss.in",
+    "http://*.itegoss.in",
     "https://rental-testing-319338334172.us-central1.run.app",
     "https://rental-856395380155.us-central1.run.app",
+    "https://*.run.app",
 ]
+
+CSRF_FAILURE_VIEW = "app.views.custom_csrf_failure_view"
+CSRF_COOKIE_HTTPONLY = False
 
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"

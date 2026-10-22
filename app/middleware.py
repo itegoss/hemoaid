@@ -33,3 +33,34 @@ class CustomSocialAuthExceptionMiddleware(SocialAuthExceptionMiddleware):
 
     def get_redirect_uri(self, request, exception):
         return "/signin/"
+
+
+class EnsureCsrfCookieMiddleware:
+    """
+    Ensures that every GET/HEAD request receives a fresh, valid CSRF cookie.
+    Also ensures HTML pages with forms are not cached by browser back/forward cache (bfcache)
+    with stale tokens.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.method in ("GET", "HEAD"):
+            try:
+                from django.middleware.csrf import get_token
+                get_token(request)
+            except Exception:
+                pass
+
+        response = self.get_response(request)
+
+        # For HTML responses, prevent caching stale CSRF form tokens in browser back/forward cache
+        content_type = response.get("Content-Type", "")
+        if "text/html" in content_type:
+            response["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            response["Pragma"] = "no-cache"
+            response["Expires"] = "0"
+
+        return response
+

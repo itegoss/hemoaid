@@ -1,4 +1,4 @@
-const CACHE_NAME = "quicknest-v2";
+const CACHE_NAME = "quicknest-v3";
 
 const urlsToCache = [
     "/",
@@ -28,18 +28,10 @@ self.addEventListener("fetch", (event) => {
         return;
     }
 
+    // For navigation (HTML pages), always fetch fresh from network to guarantee active CSRF tokens
     if (event.request.mode === "navigate") {
         event.respondWith(
             fetch(event.request)
-                .then((networkResponse) => {
-                    if (networkResponse && networkResponse.status === 200) {
-                        const responseClone = networkResponse.clone();
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, responseClone);
-                        });
-                    }
-                    return networkResponse;
-                })
                 .catch(() => caches.match(event.request).then((res) => res || caches.match("/")))
         );
         return;
@@ -50,4 +42,4 @@ self.addEventListener("fetch", (event) => {
             return response || fetch(event.request);
         })
     );
-});
+});

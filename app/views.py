@@ -4333,3 +4333,78 @@ def service_worker(request):
         open(file_path, "rb"),
         content_type="application/javascript"
     )
+
+
+def custom_csrf_failure_view(request, reason=""):
+    """
+    Seamless CSRF failure handler:
+    1. Automatically rotates and issues a fresh CSRF token.
+    2. If request is from an HTML form on the same site, silently redirects back to
+       the originating page (or referer) with a friendly warning message, avoiding the 403 page.
+    3. If request is AJAX/JSON, returns a JSON error with refreshed csrf instruction.
+    4. If no referer is available, renders a beautifully styled fallback error page.
+    """
+    import logging
+    csrf_logger = logging.getLogger(__name__)
+    csrf_logger.warning(
+        f"[CSRF Verification Failed] path={request.path} method={request.method} "
+        f"reason={reason} ip={request.META.get('REMOTE_ADDR')}"
+    )
+
+    from django.middleware.csrf import rotate_token, get_token
+    try:
+        rotate_token(request)
+        new_token = get_token(request)
+    except Exception:
+        new_token = None
+
+    is_ajax = (
+        request.headers.get("x-requested-with") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("accept", "")
+        or request.content_type == "application/json"
+    )
+    if is_ajax:
+        return JsonResponse(
+            {
+                "success": False,
+                "csrf_expired": True,
+                "error": "Security token expired or refreshed. Please try again.",
+            },
+            status=403,
+        )
+
+    # For browser form submissions: redirect back to referer so user can resubmit smoothly
+    referer = request.META.get("HTTP_REFERER")
+    if referer:
+        try:
+            from django.contrib import messages
+            messages.warning(
+                request,
+                "Your security session was refreshed. Please try submitting again."
+            )
+        except Exception:
+            pass
+
+        response = redirect(referer)
+        if new_token:
+            response.set_cookie(
+                settings.CSRF_COOKIE_NAME,
+                new_token,
+                domain=getattr(settings, "CSRF_COOKIE_DOMAIN", None),
+                path=getattr(settings, "CSRF_COOKIE_PATH", "/"),
+                secure=getattr(settings, "CSRF_COOKIE_SECURE", False),
+                httponly=getattr(settings, "CSRF_COOKIE_HTTPONLY", False),
+                samesite=getattr(settings, "CSRF_COOKIE_SAMESITE", "Lax"),
+            )
+        return response
+
+    return render(
+        request,
+        "csrf_error.html",
+        {
+            "reason": reason,
+            "next": request.path,
+        },
+        status=403,
+    )
+
