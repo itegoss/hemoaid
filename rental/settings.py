@@ -87,17 +87,16 @@ if 'test' in sys.argv:
     }
 
 else:
-     DATABASES = {
-             'default': {
-                 'ENGINE': 'django.db.backends.postgresql',
-                 'NAME': os.getenv('DB_NAME'),
-                 'USER': os.getenv('DB_USER'),
-                 'PASSWORD': os.getenv('DB_PASSWORD'),
-                 'HOST': os.getenv('DB_HOST'),
-                 'PORT': os.getenv('DB_PORT'),
+    DATABASES = {
+     'default': {
+         'ENGINE': 'django.db.backends.postgresql',
+         'NAME': 'kys',
+         'USER': 'postgres',
+         'PASSWORD': 'admin',
+         'HOST': 'localhost',
+         'PORT': '5432',
      }
-     }
-
+ }
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -194,7 +193,7 @@ GS_BUCKET_NAME = os.getenv("GS_BUCKET_NAME")
 GS_PROJECT_ID = os.getenv("GS_PROJECT_ID")
 GS_SA_EMAIL = os.getenv(
     "GS_SA_EMAIL",
-    "319338334172-compute@developer.gserviceaccount.com"
+    "1019810608162-compute@developer.gserviceaccount.com",
 )
 
 if GS_BUCKET_NAME:
