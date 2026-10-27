@@ -1,0 +1,53 @@
+# robots.txt for https://sickbed.itegoss.in/
+User-agent: *
+Allow: /
+Allow: /static/
+Allow: /media/
+
+# Disallow administrative, account, auth, cart, and internal pages
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /cart/
+Disallow: /add-to-cart/
+Disallow: /signin/
+Disallow: /signin-mobile/
+Disallow: /signup/
+Disallow: /logout/
+Disallow: /verify-otp/
+Disallow: /forgot-username/
+Disallow: /resetpass/
+Disallow: /userdetail/
+Disallow: /select-delivery/
+Disallow: /payment/
+Disallow: /paymentmethod/
+Disallow: /success/
+Disallow: /bookingsammry/
+Disallow: /rental/view/
+Disallow: /return/
+Disallow: /return-order/
+Disallow: /cancel-order/
+Disallow: /extend-return/
+Disallow: /return-item/
+Disallow: /return-receipt/
+Disallow: /generate_receipt/
+Disallow: /inventory/
+Disallow: /items/add/
+Disallow: /notify-request/
+Disallow: /send-overdue-emails/
+Disallow: /approve-order/
+Disallow: /deliver-order/
+Disallow: /request-blood/
+Disallow: /blood-requests/
+Disallow: /organize-camp/status/
+Disallow: /medical-services/add/
+Disallow: /medical-services/edit/
+Disallow: /medical-services/delete/
+Disallow: /services/add/
+Disallow: /notifications/
+Disallow: /users/
+Disallow: /roles/
+Disallow: /approve-return/
+Disallow: /download-report/
+
+# Dynamic XML Sitemap
+Sitemap: https://sickbed.itegoss.in/sitemap.xml

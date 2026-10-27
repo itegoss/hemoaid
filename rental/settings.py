@@ -26,6 +26,7 @@ ALLOWED_HOSTS = [
     "*",
 ]
 
+SITEMAP_DOMAIN = "sickbed.itegoss.in"
 
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = not DEBUG
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sitemaps",
     "app.apps.AppConfig",
     "social_django",
     "storages",
@@ -101,6 +103,8 @@ else:
                  'PORT': os.getenv('DB_PORT'),
      }
      }
+
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

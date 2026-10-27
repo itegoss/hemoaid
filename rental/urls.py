@@ -6,8 +6,10 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.generic.base import RedirectView
+from django.views.generic.base import RedirectView, TemplateView
 from django.templatetags.static import static as static_url
+from django.contrib.sitemaps.views import sitemap as sitemap_view
+from rental.sitemaps import sitemaps
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -20,12 +22,27 @@ urlpatterns = [
         ),
     ),
 
+    # Robots.txt
+    path(
+        'robots.txt',
+        TemplateView.as_view(template_name='robots.txt', content_type='text/plain'),
+        name='robots_txt',
+    ),
+
+    # XML Sitemap
+    path(
+        'sitemap.xml',
+        sitemap_view,
+        {'sitemaps': sitemaps},
+        name='django.contrib.sitemaps.views.sitemap',
+    ),
+
     # Service Worker
-   path(
-    "service-worker.js",
-    service_worker,
-    name="service_worker",
-),
+    path(
+        "service-worker.js",
+        service_worker,
+        name="service_worker",
+    ),
 
     # App URLs
     path('', include('app.urls')),
